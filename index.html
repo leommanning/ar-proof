@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Braiswick AR Multi-Option Scanner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  
+  <!-- Import libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image.prod.js"></script>
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      position: fixed;
+      font-family: 'Arial', sans-serif;
+    }
+    
+    /* Splash Screen */
+    #splash-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #a6b4a4;
+      z-index: 20000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      transition: opacity 0.8s ease;
+    }
+    
+    #splash-screen.fade-out {
+      opacity: 0;
+      pointer-events: none;
+    }
+    
+    .splash-logo {
+      width: 280px;
+      height: auto;
+      animation: fadeInScale 1.2s ease-out;
+    }
+    
+    @keyframes fadeInScale {
+      0% {
+        opacity: 0;
+        transform: scale(0.9);
+      }
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+    
+    /* Camera permission button overlay */
+    #camera-prompt {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #a6b4a4;
+      z-index: 10000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    
+    .camera-prompt-content {
+      text-align: center;
+      max-width: 400px;
+      padding: 20px;
+    }
+    
+    .prompt-logo {
+      width: 200px;
+      height: auto;
+      margin-bottom: 40px;
+    }
+    
+    #camera-button {
+      background: #2c3e2f;
+      color: white;
+      border: none;
+      padding: 18px 50px;
+      border-radius: 50px;
+      font-size: 18px;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      margin-top: 20px;
+    }
+    
+    #camera-button:hover {
+      background: #1e2b20;
+      transform: translateY(-2px);
+      box-shadow: 0 15px 30px rgba(0,0,0,0.15);
+    }
+    
+    #permission-status {
+      margin-top: 20px;
+      color: #2c3e2f;
+      font-size: 14px;
+      font-weight: 500;
+      opacity: 0.8;
+    }
+    
+    .prompt-message {
+      color: #2c3e2f;
+      font-size: 16px;
+      line-height: 1.6;
+      margin-bottom: 20px;
+      font-weight: 400;
+      opacity: 0.9;
+    }
+    
+    /* AR Scene */
+    a-scene {
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      z-index: 1 !important;
+      display: block !important;
+      opacity: 0;
+      transition: opacity 0.5s;
+    }
+    
+    a-scene.visible {
+      opacity: 1;
+    }
+    
+    /* UI Overlay */
+    #ui-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1000;
+      pointer-events: none;
+    }
+    
+    .scan-container {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 280px;
+      height: 280px;
+      z-index: 1001;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .scan-box {
+      width: 100%;
+      height: 100%;
+      border: 2px solid rgba(255, 255, 255, 0.8);
+      border-radius: 24px;
+      box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.5);
+      transition: all 0.3s ease;
+    }
+    
+    .scan-box.detected {
+      border-color: #a6b4a4;
+      box-shadow: 0 0 30px #a6b4a4, 0 0 0 1000px rgba(166, 180, 164, 0.1);
+    }
+    
+    /* Selection Modal */
+    #selection-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 2000;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      backdrop-filter: blur(5px);
+    }
+    
+    .modal-content {
+      background: white;
+      padding: 30px;
+      border-radius: 20px;
+      max-width: 400px;
+      width: 90%;
+      text-align: center;
+      animation: slideUp 0.3s ease;
+    }
+    
+    @keyframes slideUp {
+      from {
+        transform: translateY(50px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+    
+    .modal-logo {
+      width: 150px;
+      height: auto;
+      margin-bottom: 20px;
+    }
+    
+    .modal-title {
+      color: #2c3e2f;
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    
+    .modal-message {
+      color: #666;
+      font-size: 14px;
+      margin-bottom: 25px;
+      line-height: 1.6;
+    }
+    
+    .modal-buttons {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+    }
+    
+    .modal-btn {
+      padding: 15px 30px;
+      border: none;
+      border-radius: 50px;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      flex: 1;
+    }
+    
+    .btn-primary {
+      background: #2c3e2f;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: #1e2b20;
+      transform: translateY(-2px);
+    }
+    
+    .btn-secondary {
+      background: #f0f0f0;
+      color: #2c3e2f;
+    }
+    
+    .btn-secondary:hover {
+      background: #e0e0e0;
+      transform: translateY(-2px);
+    }
+    
+    .btn-close {
+      margin-top: 15px;
+      background: none;
+      border: 1px solid #ddd;
+      color: #999;
+      font-size: 14px;
+      padding: 8px 20px;
+      width: auto;
+    }
+    
+    /* Video overlay */
+    #video-overlay-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 2500;
+      display: none;
+      background: black;
+    }
+    
+    #fullscreen-video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: black;
+    }
+    
+    #close-video-btn {
+      position: absolute;
+      top: 30px;
+      right: 30px;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: white;
+      font-size: 30px;
+      line-height: 1;
+      cursor: pointer;
+      pointer-events: auto;
+      transition: all 0.3s ease;
+      z-index: 2501;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(5px);
+    }
+    
+    #close-video-btn:hover {
+      background: rgba(0, 0, 0, 0.8);
+      transform: scale(1.1);
+    }
+    
+    #loading {
+      position: fixed;
+      bottom: 30px;
+      right: 30px;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 12px;
+      letter-spacing: 0.5px;
+      z-index: 10000;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+  <!-- Splash Screen -->
+  <div id="splash-screen">
+    <img src="https://static.wixstatic.com/media/42e05c_12592fc2a93e4bf0b1e30417fc3a3694~mv2.png" alt="Braiswick" class="splash-logo">
+  </div>
+
+  <!-- Camera Permission Prompt -->
+  <div id="camera-prompt">
+    <div class="camera-prompt-content">
+      <img src="https://static.wixstatic.com/media/42e05c_12592fc2a93e4bf0b1e30417fc3a3694~mv2.png" alt="Braiswick" class="prompt-logo">
+      <div class="prompt-message">Enable camera access to begin your experience</div>
+      <button id="camera-button">Continue</button>
+      <div id="permission-status"></div>
+    </div>
+  </div>
+
+  <!-- Hidden video elements -->
+  <video id="photo-video" loop playsinline muted crossorigin="anonymous" preload="auto" style="display: none;">
+    <source src="./video.mp4" type="video/mp4">
+  </video>
+  
+  <video id="image1-video" loop playsinline muted crossorigin="anonymous" preload="auto" style="display: none;">
+    <source src="./video1.mp4" type="video/mp4">
+  </video>
+  
+  <video id="image2-video" loop playsinline muted crossorigin="anonymous" preload="auto" style="display: none;">
+    <source src="./video2.mp4" type="video/mp4">
+  </video>
+  
+  <video id="image4-video" loop playsinline muted crossorigin="anonymous" preload="auto" style="display: none;">
+    <source src="./video4.mp4" type="video/mp4">
+  </video>
+
+  <!-- Fullscreen Video Overlay -->
+  <div id="video-overlay-container">
+    <video id="fullscreen-video" loop playsinline controls></video>
+    <button id="close-video-btn">✕</button>
+  </div>
+
+  <!-- Selection Modal -->
+  <div id="selection-modal">
+    <div class="modal-content">
+      <img src="https://static.wixstatic.com/media/42e05c_12592fc2a93e4bf0b1e30417fc3a3694~mv2.png" alt="Braiswick" class="modal-logo">
+      <div class="modal-title">Target Found!</div>
+      <div class="modal-message" id="modalMessage">What would you like to do?</div>
+      <div class="modal-buttons">
+        <button class="modal-btn btn-primary" id="visitWebsiteBtn">Visit Website</button>
+        <button class="modal-btn btn-secondary" id="playVideoBtn">Play Video</button>
+      </div>
+      <button class="modal-btn btn-close" id="closeModalBtn">Cancel</button>
+    </div>
+  </div>
+
+  <!-- AR Scene - Photo Target -->
+  <a-scene
+    id="scene"
+    mindar-image="imageTargetSrc: ./photo.mind; autoStart: true; uiLoading: no; uiError: no; uiScanning: no;"
+    color-space="sRGB"
+    embedded
+    renderer="colorManagement: true"
+    vr-mode-ui="enabled: false"
+    device-orientation-permission-ui="enabled: false">
+    
+    <a-camera id="camera" position="0 0 0" look-controls="enabled: false"></a-camera>
+    
+    <!-- Photo Target (Index 0) -->
+    <a-entity id="photo-target" mindar-image-target="targetIndex: 0">
+      <a-plane
+        width="2.0"
+        height="1.33"
+        position="0 0.5 0"
+        rotation="0 0 0"
+        color="#a6b4a4"
+        opacity="0.3"
+        material="transparent: true;">
+      </a-plane>
+    </a-entity>
+  </a-scene>
+
+  <!-- AR Scene for Image 1 -->
+  <a-scene
+    id="scene-image1"
+    mindar-image="imageTargetSrc: ./image1.mind; autoStart: true; uiLoading: no; uiError: no; uiScanning: no;"
+    color-space="sRGB"
+    embedded
+    renderer="colorManagement: true"
+    vr-mode-ui="enabled: false"
+    device-orientation-permission-ui="enabled: false"
+    style="display: none;">
+    
+    <a-camera id="camera-image1" position="0 0 0" look-controls="enabled: false"></a-camera>
+    
+    <!-- Image 1 Target -->
+    <a-entity id="image1-target" mindar-image-target="targetIndex: 0">
+      <a-plane
+        width="2.0"
+        height="1.33"
+        position="0 0.5 0"
+        rotation="0 0 0"
+        color="#a6b4a4"
+        opacity="0.3"
+        material="transparent: true;">
+      </a-plane>
+    </a-entity>
+  </a-scene>
+
+  <!-- AR Scene for Image 2 -->
+  <a-scene
+    id="scene-image2"
+    mindar-image="imageTargetSrc: ./image2.mind; autoStart: true; uiLoading: no; uiError: no; uiScanning: no;"
+    color-space="sRGB"
+    embedded
+    renderer="colorManagement: true"
+    vr-mode-ui="enabled: false"
+    device-orientation-permission-ui="enabled: false"
+    style="display: none;">
+    
+    <a-camera id="camera-image2" position="0 0 0" look-controls="enabled: false"></a-camera>
+    
+    <!-- Image 2 Target -->
+    <a-entity id="image2-target" mindar-image-target="targetIndex: 0">
+      <a-plane
+        width="2.0"
+        height="1.33"
+        position="0 0.5 0"
+        rotation="0 0 0"
+        color="#a6b4a4"
+        opacity="0.3"
+        material="transparent: true;">
+      </a-plane>
+    </a-entity>
+  </a-scene>
+
+  <!-- AR Scene for Image 4 -->
+  <a-scene
+    id="scene-image4"
+    mindar-image="imageTargetSrc: ./image4.mind; autoStart: true; uiLoading: no; uiError: no; uiScanning: no;"
+    color-space="sRGB"
+    embedded
+    renderer="colorManagement: true"
+    vr-mode-ui="enabled: false"
+    device-orientation-permission-ui="enabled: false"
+    style="display: none;">
+    
+    <a-camera id="camera-image4" position="0 0 0" look-controls="enabled: false"></a-camera>
+    
+    <!-- Image 4 Target -->
+    <a-entity id="image4-target" mindar-image-target="targetIndex: 0">
+      <a-plane
+        width="2.0"
+        height="1.33"
+        position="0 0.5 0"
+        rotation="0 0 0"
+        color="#a6b4a4"
+        opacity="0.3"
+        material="transparent: true;">
+      </a-plane>
+    </a-entity>
+  </a-scene>
+
+  <!-- UI Overlay -->
+  <div id="ui-overlay">
+    <div class="scan-container">
+      <div class="scan-box" id="scanBox"></div>
+    </div>
+  </div>
+  
+  <div id="loading">initializing</div>
+
+  <script>
+    // Configuration
+    const REDIRECT_URL = 'https://www.braiswickdirect.co.uk/Schools.aspx?Barcode=6581104&Passcode=Wt8LCGFw';
+    
+    // Get UI elements
+    const splashScreen = document.getElementById('splash-screen');
+    const scanBox = document.getElementById('scanBox');
+    const loadingEl = document.getElementById('loading');
+    const cameraPrompt = document.getElementById('camera-prompt');
+    const cameraButton = document.getElementById('camera-button');
+    const permissionStatus = document.getElementById('permission-status');
+    
+    // Modal elements
+    const modal = document.getElementById('selection-modal');
+    const modalMessage = document.getElementById('modalMessage');
+    const visitWebsiteBtn = document.getElementById('visitWebsiteBtn');
+    const playVideoBtn = document.getElementById('playVideoBtn');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    
+    // Video elements
+    const photoVideo = document.getElementById('photo-video');
+    const image1Video = document.getElementById('image1-video');
+    const image2Video = document.getElementById('image2-video');
+    const image4Video = document.getElementById('image4-video');
+    
+    // Overlay elements
+    const overlayContainer = document.getElementById('video-overlay-container');
+    const fullscreenVideo = document.getElementById('fullscreen-video');
+    const closeBtn = document.getElementById('close-video-btn');
+    
+    // Get all scenes
+    const photoScene = document.getElementById('scene');
+    const image1Scene = document.getElementById('scene-image1');
+    const image2Scene = document.getElementById('scene-image2');
+    const image4Scene = document.getElementById('scene-image4');
+    const allScenes = [photoScene, image1Scene, image2Scene, image4Scene];
+    
+    let activeScene = 'photo';
+    let targetFound = false;
+    let cameraPermission = false;
+    let currentTargetVideo = null;
+    
+    // Fade out splash screen after 2 seconds
+    setTimeout(() => {
+      splashScreen.classList.add('fade-out');
+    }, 2000);
+    
+    // Check if we're in an iframe
+    const isInIframe = window.self !== window.top;
+    
+    // Function to request camera permission
+    async function requestCameraPermission() {
+      permissionStatus.innerHTML = 'Requesting camera access...';
+      cameraButton.disabled = true;
+      cameraButton.innerHTML = 'Requesting...';
+      
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: 'environment'
+          },
+          audio: false 
+        });
+        
+        stream.getTracks().forEach(track => track.stop());
+        
+        cameraPermission = true;
+        cameraPrompt.style.display = 'none';
+        
+        allScenes.forEach(scene => {
+          scene.classList.add('visible');
+        });
+        
+        loadingEl.innerHTML = 'scanning';
+        
+        return true;
+        
+      } catch (error) {
+        console.error('Camera error:', error);
+        
+        let userMessage = '';
+        if (error.name === 'NotAllowedError') {
+          userMessage = 'Camera access required. Please enable and try again.';
+        } else {
+          userMessage = 'Unable to access camera. Please try again.';
+        }
+        
+        permissionStatus.innerHTML = userMessage;
+        cameraButton.disabled = false;
+        cameraButton.innerHTML = 'Try Again';
+        
+        return false;
+      }
+    }
+    
+    // Camera button click handler
+    cameraButton.addEventListener('click', () => {
+      requestCameraPermission();
+    });
+    
+    // If not in iframe, auto-request after splash screen
+    if (!isInIframe) {
+      setTimeout(() => {
+        requestCameraPermission();
+      }, 2500);
+    }
+    
+    // Load all videos
+    [photoVideo, image1Video, image2Video, image4Video].forEach(video => {
+      video.load();
+    });
+    
+    // Function to show fullscreen video
+    function showFullscreenVideo(videoElement) {
+      pauseAllVideos();
+      
+      const sourceElement = videoElement.querySelector('source');
+      if (sourceElement) {
+        fullscreenVideo.src = sourceElement.src;
+      }
+      
+      fullscreenVideo.muted = false;
+      fullscreenVideo.volume = 1.0;
+      overlayContainer.style.display = 'block';
+      
+      const playPromise = fullscreenVideo.play();
+      
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          const playHandler = () => {
+            fullscreenVideo.play();
+            document.body.removeEventListener('click', playHandler);
+          };
+          document.body.addEventListener('click', playHandler, { once: true });
+        });
+      }
+    }
+    
+    // Function to hide fullscreen video
+    function hideFullscreenVideo() {
+      fullscreenVideo.pause();
+      fullscreenVideo.currentTime = 0;
+      fullscreenVideo.src = '';
+      overlayContainer.style.display = 'none';
+    }
+    
+    // Close button handler
+    closeBtn.addEventListener('click', hideFullscreenVideo);
+    
+    // Function to pause all videos
+    function pauseAllVideos() {
+      photoVideo.pause();
+      image1Video.pause();
+      image2Video.pause();
+      image4Video.pause();
+    }
+    
+    // Show modal with target options
+    function showTargetModal(targetVideo) {
+      currentTargetVideo = targetVideo;
+      modal.style.display = 'flex';
+      scanBox.classList.add('detected');
+    }
+    
+    // Hide modal
+    function hideModal() {
+      modal.style.display = 'none';
+      currentTargetVideo = null;
+    }
+    
+    // Modal button handlers
+    visitWebsiteBtn.addEventListener('click', () => {
+      hideModal();
+      window.location.href = REDIRECT_URL;
+    });
+    
+    playVideoBtn.addEventListener('click', () => {
+      hideModal();
+      if (currentTargetVideo) {
+        showFullscreenVideo(currentTargetVideo);
+      }
+    });
+    
+    closeModalBtn.addEventListener('click', () => {
+      hideModal();
+    });
+    
+    // Scene event listeners for PHOTO target
+    photoScene.addEventListener('loaded', () => {
+      loadingEl.innerHTML = 'ready';
+    });
+    
+    photoScene.addEventListener('targetFound', () => {
+      targetFound = true;
+      scanBox.classList.add('detected');
+      scanBox.classList.add('pulse');
+      showTargetModal(photoVideo);
+    });
+    
+    photoScene.addEventListener('targetLost', () => {
+      if (overlayContainer.style.display !== 'block' && modal.style.display !== 'flex') {
+        targetFound = false;
+        scanBox.classList.remove('detected');
+        scanBox.classList.remove('pulse');
+      }
+    });
+    
+    // Scene event listeners for IMAGE 1 target
+    image1Scene.addEventListener('targetFound', () => {
+      targetFound = true;
+      scanBox.classList.add('detected');
+      scanBox.classList.add('pulse');
+      showTargetModal(image1Video);
+    });
+    
+    image1Scene.addEventListener('targetLost', () => {
+      if (overlayContainer.style.display !== 'block' && modal.style.display !== 'flex') {
+        targetFound = false;
+        scanBox.classList.remove('detected');
+        scanBox.classList.remove('pulse');
+      }
+    });
+    
+    // Scene event listeners for IMAGE 2 target
+    image2Scene.addEventListener('targetFound', () => {
+      targetFound = true;
+      scanBox.classList.add('detected');
+      scanBox.classList.add('pulse');
+      showTargetModal(image2Video);
+    });
+    
+    image2Scene.addEventListener('targetLost', () => {
+      if (overlayContainer.style.display !== 'block' && modal.style.display !== 'flex') {
+        targetFound = false;
+        scanBox.classList.remove('detected');
+        scanBox.classList.remove('pulse');
+      }
+    });
+    
+    // Scene event listeners for IMAGE 4 target
+    image4Scene.addEventListener('targetFound', () => {
+      targetFound = true;
+      scanBox.classList.add('detected');
+      scanBox.classList.add('pulse');
+      showTargetModal(image4Video);
+    });
+    
+    image4Scene.addEventListener('targetLost', () => {
+      if (overlayContainer.style.display !== 'block' && modal.style.display !== 'flex') {
+        targetFound = false;
+        scanBox.classList.remove('detected');
+        scanBox.classList.remove('pulse');
+      }
+    });
+    
+    // Scene cycling
+    let sceneIndex = 0;
+    const scenes = ['photo', 'image1', 'image2', 'image4'];
+    
+    function setActiveScene(sceneName) {
+      if (overlayContainer.style.display === 'block' || modal.style.display === 'flex') return;
+      
+      photoScene.style.display = 'none';
+      image1Scene.style.display = 'none';
+      image2Scene.style.display = 'none';
+      image4Scene.style.display = 'none';
+      
+      if (sceneName === 'photo') {
+        photoScene.style.display = 'block';
+        activeScene = 'photo';
+      } else if (sceneName === 'image1') {
+        image1Scene.style.display = 'block';
+        activeScene = 'image1';
+      } else if (sceneName === 'image2') {
+        image2Scene.style.display = 'block';
+        activeScene = 'image2';
+      } else if (sceneName === 'image4') {
+        image4Scene.style.display = 'block';
+        activeScene = 'image4';
+      }
+    }
+    
+    setActiveScene('photo');
+    
+    setInterval(() => {
+      if (!targetFound && cameraPermission && overlayContainer.style.display !== 'block' && modal.style.display !== 'flex') {
+        sceneIndex = (sceneIndex + 1) % scenes.length;
+        setActiveScene(scenes[sceneIndex]);
+      }
+    }, 3000);
+    
+    // Handle visibility change
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        pauseAllVideos();
+        if (fullscreenVideo) fullscreenVideo.pause();
+        hideModal();
+      }
+    });
+  </script>
+</body>
+</html>
